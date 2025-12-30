@@ -3,33 +3,37 @@
 @tailwind utilities;
 
 :root {
-  --foreground-rgb: 15, 23, 42; /* Slate 900 */
+  --foreground-rgb: 15, 23, 42;
   --background-start-rgb: 255, 255, 255;
-  --background-end-rgb: 248, 250, 252; /* Slate 50 */
+  --background-end-rgb: 248, 250, 252;
 }
 
 body {
   color: rgb(var(--foreground-rgb));
   background: linear-gradient(
-      to bottom,
-      transparent,
-      rgb(var(--background-end-rgb))
-    )
-    rgb(var(--background-start-rgb));
+    to bottom,
+    transparent,
+    rgb(var(--background-end-rgb))
+  )
+  rgb(var(--background-start-rgb));
   min-height: 100vh;
 }
 
-/* Custom styles for a premium feel */
 @layer base {
   h1, h2, h3, h4 {
     @apply font-semibold tracking-tight;
   }
 }
 
-/* Prose customization for AI Markdown output */
+/* AI Analysis Markdown Styling */
 .prose {
   @apply max-w-none text-slate-700 leading-relaxed;
 }
+
 .prose strong {
   @apply text-emerald-700 font-bold;
+}
+
+.prose h3 {
+  @apply text-slate-900 font-bold mt-6 mb-2;
 }

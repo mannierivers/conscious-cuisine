@@ -1,5 +1,10 @@
+"use client"; 
+
+import { useAuth } from "@/hooks/useAuth";
 import Link from 'next/link';
 import { ChefHat, HeartPulse, BrainCircuit, ArrowRight } from 'lucide-react';
+
+const { profile } = useAuth();
 
 export default function HomePage() {
   return (
@@ -13,12 +18,13 @@ export default function HomePage() {
             </div>
           </div>
           <h1 className="text-6xl font-serif font-bold text-slate-900 mb-6">
-            Conscious <span className="text-emerald-600">Cuisine</span>
-          </h1>
-          <p className="text-xl text-slate-600 mb-10 leading-relaxed">
-            Experience the culinary philosophy of Chef Cary Neff. 
-            Where nutrition science meets world-class flavor, personalized for your medical journey.
-          </p>
+            {profile?.role === 'chef' ? `Welcome back, Chef.` : `Conscious Cuisine`}
+            </h1>
+            <p className="text-xl text-slate-600 mb-10 leading-relaxed max-w-2xl mx-auto">
+            {profile?.role === 'chef' 
+                ? "Your culinary library is currently being analyzed by our clinical AI to support your diners' health." 
+                : "Where nutrition science meets world-class flavor, personalized for your journey."}
+            </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link 
               href="/recipes" 
