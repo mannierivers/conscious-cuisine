@@ -5,17 +5,7 @@
     "rules": "firestore.rules",
     "indexes": "firestore.indexes.json"
   },
-  "apphosting": {
-    "backendId": "conscious-cuisine",
-    "rootDir": "n",
-    "ignore": [
-      "node_modules",
-      ".git",
-      "firebase-debug.log",
-      "firebase-debug.*.log",
-      "functions"
-    ]
-  },
+
   "hosting": {
     "public": "out",
     "ignore": [
