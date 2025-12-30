@@ -9,6 +9,14 @@ const inter = Inter({ subsets: ["latin"] });
 export const metadata: Metadata = {
   title: "Conscious Cuisine | Chef Cary Neff",
   description: "Experience the culinary philosophy of Chef Cary Neff. Where nutrition science meets world-class flavor.",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "Conscious",
+  },
+  formatDetection: {
+    telephone: false,
+    },
 };
 
 export default function RootLayout({
