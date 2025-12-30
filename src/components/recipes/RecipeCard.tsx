@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import Image from 'next/image';
 import { ChefHat, Beaker, ArrowRight } from 'lucide-react';
 
 export default function RecipeCard({ recipe }: { recipe: any }) {
@@ -9,7 +10,21 @@ export default function RecipeCard({ recipe }: { recipe: any }) {
           <span className="bg-emerald-50 text-emerald-700 text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider">
             {recipe.category || "Conscious Cuisine"}
           </span>
-          <Beaker className="text-blue-400" size={18} />
+          {/* Replace the top div/icon section with this */}
+            <div className="relative h-48 w-full">
+              {recipe.imageUrl ? (
+                <Image 
+                  src={recipe.imageUrl} 
+                  alt={recipe.title} 
+                  fill 
+                  className="object-cover group-hover:scale-105 transition-transform duration-500"
+                />
+              ) : (
+                <div className="w-full h-full bg-slate-100 flex items-center justify-center">
+                  <ChefHat className="text-slate-300" size={40} />
+                </div>
+              )}
+            </div>
         </div>
         
         <h3 className="text-xl font-bold text-slate-900 mb-2 group-hover:text-emerald-600 transition-colors">

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { db } from "@/lib/firebase/config";
 import { collection, getDocs, query, orderBy } from "firebase/firestore";
 import RecipeCard from "@/components/recipes/RecipeCard";
+import ChefRecommendation from "@/components/recipes/ChefRecommendation";
 import { Loader2, Search, Filter } from "lucide-react";
 
 export default function RecipeListPage() {
@@ -28,6 +29,8 @@ export default function RecipeListPage() {
     }
     getRecipes();
   }, []);
+
+  if (loading) return <div className="flex h-screen items-center justify-center"><Loader2 className="animate-spin text-emerald-600" /></div>;
 
   return (
     <main className="min-h-screen bg-slate-50/50 p-8">
@@ -55,6 +58,20 @@ export default function RecipeListPage() {
           <button className="flex items-center justify-center gap-2 bg-white px-6 py-3 rounded-xl border border-slate-200 font-medium text-slate-700 hover:bg-slate-50 transition-colors">
             <Filter size={18} /> Filters
           </button>
+        </div>
+
+        {/* THE AI RECOMMENDATION ENGINE */}
+        <ChefRecommendation recipes={recipes} />
+
+        <div className="flex items-center justify-between mb-8">
+            <h2 className="text-2xl font-bold text-slate-900">Explore All Recipes</h2>
+            <div className="text-sm text-slate-500">{recipes.length} Conscious Dishes Found</div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+          {recipes.map((recipe) => (
+            <RecipeCard key={recipe.id} recipe={recipe} />
+          ))}
         </div>
 
         {/* Grid Layout */}
