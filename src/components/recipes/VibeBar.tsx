@@ -1,6 +1,5 @@
 "use client";
 
-import { motion } from "framer-motion";
 import { Brain, Moon, Zap, ShieldAlert, Sparkles } from "lucide-react";
 
 const VIBES = [
@@ -12,23 +11,27 @@ const VIBES = [
 
 export default function VibeBar({ activeVibe, onVibeChange }: { activeVibe: string | null, onVibeChange: (vibe: any) => void }) {
   return (
-    <div className="flex flex-wrap gap-3 mb-8">
-      <button 
-        onClick={() => onVibeChange(null)}
-        className={`px-4 py-2 rounded-full text-xs font-bold uppercase tracking-widest border transition-all ${!activeVibe ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-400 border-slate-200'}`}
-      >
-        All Recipes
-      </button>
-      {VIBES.map((vibe) => (
-        <button
-          key={vibe.id}
-          onClick={() => onVibeChange(vibe)}
-          className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold uppercase tracking-widest border transition-all ${activeVibe === vibe.id ? vibe.color : 'bg-white text-slate-400 border-slate-200 hover:border-slate-300'}`}
+    <div className="space-y-4">
+      <div className="flex items-center gap-2 text-slate-400 font-bold text-[10px] uppercase tracking-[0.2em]">
+        <Sparkles size={14} className="text-emerald-500" /> Filter by Biological Mood
+      </div>
+      <div className="flex flex-wrap gap-3">
+        <button 
+          onClick={() => onVibeChange(null)}
+          className={`px-5 py-2 rounded-full text-[10px] font-black uppercase tracking-widest border transition-all ${!activeVibe ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-400 border-slate-200 hover:border-slate-300'}`}
         >
-          {vibe.icon}
-          {vibe.label}
+          All Vibes
         </button>
-      ))}
+        {VIBES.map((vibe) => (
+          <button
+            key={vibe.id}
+            onClick={() => onVibeChange(vibe)}
+            className={`flex items-center gap-2 px-5 py-2 rounded-full text-[10px] font-black uppercase tracking-widest border transition-all ${activeVibe === vibe.id ? vibe.color + ' border-transparent shadow-lg' : 'bg-white text-slate-400 border-slate-200 hover:border-slate-300'}`}
+          >
+            {vibe.icon} {vibe.label}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
