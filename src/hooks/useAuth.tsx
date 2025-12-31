@@ -39,33 +39,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [profile, setProfile] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
 
-  /**
-   * 1. MASTER INITIALIZATION
-   * Handles the "Mobile Redirect Loop" by capturing the login result 
-   * before the rest of the app renders.
-   */
+  // 1. Core Lifecycle: Handles Redirect Results and Auth Changes
   useEffect(() => {
-    const handleAuthLifecycle = async () => {
+    let isSubscribed = true;
+
+    const initAuth = async () => {
       try {
-        // Force local persistence so session survives mobile redirect reloads
+        // Set persistence before checking results
         await setPersistence(auth, browserLocalPersistence);
         
-        // Catch the user returning from Google/Apple
+        // Handle redirect result immediately on page load
         const result = await getRedirectResult(auth);
-        if (result?.user) {
-          console.log("Mobile redirect login successful");
+        if (result?.user && isSubscribed) {
+          console.log("Redirect success");
         }
       } catch (error: any) {
-        if (error.code !== "auth/redirect-cancelled-by-user") {
-          console.error("Auth Lifecycle Error:", error);
-        }
+        console.error("Auth Init Error:", error.code);
       }
     };
 
-    handleAuthLifecycle();
+    initAuth();
 
-    // Listen for Auth State Changes
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+      if (!isSubscribed) return;
+      
       setLoading(true);
       setUser(currentUser);
 
@@ -76,7 +73,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           if (docSnap.exists()) {
             setProfile(docSnap.data());
           } else {
-            // Setup default "Conscious Profile" for new users
             const newProfile = { 
               name: currentUser.displayName || "User", 
               email: currentUser.email,
@@ -88,7 +84,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             setProfile(newProfile);
           }
         } catch (err) {
-          console.error("Firestore Profile Sync Error:", err);
+          console.error("Profile sync error");
         }
       } else {
         setProfile(null);
@@ -96,51 +92,43 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setLoading(false);
     });
 
-    return () => unsubscribe();
+    return () => {
+      isSubscribed = false;
+      unsubscribe();
+    };
   }, []);
 
-  /**
-   * 2. UNIVERSAL PROVIDER HANDLER
-   * Checks if device is mobile to decide between Popup and Redirect.
-   */
-  const executeSocialLogin = async (provider: FirebaseAuthProvider): Promise<void> => {
-    if (typeof window === "undefined") return;
-
-    // Detect mobile or small screens
+  // 2. Social Login Execution Logic
+  const executeLogin = async (provider: FirebaseAuthProvider): Promise<void> => {
     const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || window.innerWidth < 768;
 
     try {
       if (isMobile) {
-        // Redirect triggers a full page refresh
+        // Redirect is required for mobile to bypass popup blockers
         await signInWithRedirect(auth, provider);
       } else {
-        // Popup is faster for desktop
         await signInWithPopup(auth, provider);
       }
     } catch (error: any) {
-      if (error.code === "auth/redirect-cancelled-by-user" || error.code === "auth/popup-closed-by-user") {
-        return;
-      }
+      if (error.code === "auth/redirect-cancelled-by-user" || error.code === "auth/popup-closed-by-user") return;
       throw error;
     }
   };
 
-  // --- EXPORTED METHODS ---
-
-  const loginWithGoogle = async (): Promise<void> => {
+  const loginWithGoogle = async () => {
     const provider = new GoogleAuthProvider();
     provider.setCustomParameters({ prompt: 'select_account' });
-    await executeSocialLogin(provider);
+    await executeLogin(provider);
   };
 
-  const loginWithApple = async (): Promise<void> => {
+  const loginWithApple = async () => {
     const provider = new OAuthProvider('apple.com');
     provider.addScope('email');
     provider.addScope('name');
-    await executeSocialLogin(provider);
+    await executeLogin(provider);
   };
 
-  const loginWithEmail = async (email: string, pass: string): Promise<void> => {
+  const loginWithEmail = async (email: string, pass: string) => {
     setLoading(true);
     try {
       await signInWithEmailAndPassword(auth, email, pass);
@@ -149,27 +137,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const signUpWithEmail = async (email: string, pass: string, name: string): Promise<void> => {
+  const signUpWithEmail = async (email: string, pass: string, name: string) => {
     setLoading(true);
     try {
       const res = await createUserWithEmailAndPassword(auth, email, pass);
       await setDoc(doc(db, "users", res.user.uid), {
-        name,
-        email,
-        medicalHistory: [],
-        role: 'user',
-        createdAt: serverTimestamp()
+        name, email, medicalHistory: [], role: 'user', createdAt: serverTimestamp()
       });
     } finally {
       setLoading(false);
     }
   };
 
-  const resetPassword = async (email: string): Promise<void> => {
+  const resetPassword = async (email: string) => {
     await sendPasswordResetEmail(auth, email);
   };
 
-  const logout = async (): Promise<void> => {
+  const logout = async () => {
     setLoading(true);
     try {
       await signOut(auth);
@@ -180,18 +164,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  // Memoize value to stop unnecessary re-renders of the whole app
-  const contextValue = useMemo(() => ({
+  const value = useMemo(() => ({
     user, profile, loading, 
     loginWithGoogle, loginWithApple, loginWithEmail, 
     signUpWithEmail, resetPassword, logout 
   }), [user, profile, loading]);
 
-  return (
-    <AuthContext.Provider value={contextValue}>
-      {children}
-    </AuthContext.Provider>
-  );
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
 export const useAuth = () => useContext(AuthContext);
