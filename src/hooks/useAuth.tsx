@@ -41,49 +41,44 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   /**
    * 1. MASTER INITIALIZATION
-   * This runs once when the app opens.
-   * It handles the logic for users returning from a mobile redirect.
+   * Handles the "Mobile Redirect Loop" by capturing the login result 
+   * before the rest of the app renders.
    */
   useEffect(() => {
-    const initAuth = async () => {
+    const handleAuthLifecycle = async () => {
       try {
-        // Force LOCAL persistence so mobile browsers don't "forget" the session
+        // Force local persistence so session survives mobile redirect reloads
         await setPersistence(auth, browserLocalPersistence);
         
-        // This is the critical fix for mobile: catch the redirect result
+        // Catch the user returning from Google/Apple
         const result = await getRedirectResult(auth);
         if (result?.user) {
-          console.log("Mobile redirect login successful:", result.user.email);
+          console.log("Mobile redirect login successful");
         }
       } catch (error: any) {
         if (error.code !== "auth/redirect-cancelled-by-user") {
-          console.error("Auth Initialization Error:", error);
+          console.error("Auth Lifecycle Error:", error);
         }
       }
     };
 
-    initAuth();
-  }, []);
+    handleAuthLifecycle();
 
-  /**
-   * 2. SYNC AUTH WITH FIRESTORE
-   * Listens for login/logout and fetches the "Conscious Profile".
-   */
-  useEffect(() => {
+    // Listen for Auth State Changes
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+      setLoading(true);
       setUser(currentUser);
-      
+
       if (currentUser) {
         const docRef = doc(db, "users", currentUser.uid);
         try {
           const docSnap = await getDoc(docRef);
-          
           if (docSnap.exists()) {
             setProfile(docSnap.data());
           } else {
-            // Setup default profile for first-time login
+            // Setup default "Conscious Profile" for new users
             const newProfile = { 
-              name: currentUser.displayName || "New User", 
+              name: currentUser.displayName || "User", 
               email: currentUser.email,
               medicalHistory: [], 
               role: 'user',
@@ -93,13 +88,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             setProfile(newProfile);
           }
         } catch (err) {
-          console.error("Profile Fetch Error:", err);
+          console.error("Firestore Profile Sync Error:", err);
         }
       } else {
         setProfile(null);
       }
-      
-      // Crucial: only stop loading once we've checked the profile
       setLoading(false);
     });
 
@@ -107,29 +100,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   /**
-   * 3. UNIVERSAL SOCIAL LOGIN HANDLER
-   * Optimized for Mobile Redirects vs. Desktop Popups
+   * 2. UNIVERSAL PROVIDER HANDLER
+   * Checks if device is mobile to decide between Popup and Redirect.
    */
   const executeSocialLogin = async (provider: FirebaseAuthProvider): Promise<void> => {
     if (typeof window === "undefined") return;
 
-    // Detect mobile by userAgent or screen size
+    // Detect mobile or small screens
     const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || window.innerWidth < 768;
 
     try {
       if (isMobile) {
-        // Triggers a page reload - handled by initAuth above
+        // Redirect triggers a full page refresh
         await signInWithRedirect(auth, provider);
       } else {
-        // Desktop standard
+        // Popup is faster for desktop
         await signInWithPopup(auth, provider);
       }
     } catch (error: any) {
-      if (
-        error.code === "auth/redirect-cancelled-by-user" || 
-        error.code === "auth/popup-closed-by-user"
-      ) {
-        return; // Gracefully handle user closing the window
+      if (error.code === "auth/redirect-cancelled-by-user" || error.code === "auth/popup-closed-by-user") {
+        return;
       }
       throw error;
     }
@@ -144,18 +134,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const loginWithApple = async (): Promise<void> => {
-    try {
-      const provider = new OAuthProvider('apple.com');
-      provider.addScope('email');
-      provider.addScope('name');
-      await executeSocialLogin(provider);
-    } catch (error: any) {
-      if (error.code === 'auth/operation-not-allowed') {
-        alert("Apple Sign-In is currently being verified. Please use Google or Email for the demo.");
-      } else {
-        throw error;
-      }
-    }
+    const provider = new OAuthProvider('apple.com');
+    provider.addScope('email');
+    provider.addScope('name');
+    await executeSocialLogin(provider);
   };
 
   const loginWithEmail = async (email: string, pass: string): Promise<void> => {
@@ -198,7 +180,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  // Memoize value to prevent unnecessary re-renders of your entire app
+  // Memoize value to stop unnecessary re-renders of the whole app
   const contextValue = useMemo(() => ({
     user, profile, loading, 
     loginWithGoogle, loginWithApple, loginWithEmail, 
