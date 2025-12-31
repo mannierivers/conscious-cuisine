@@ -40,94 +40,102 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   /**
-   * 1. MASTER LOGIN HANDLER
-   * This is the single source of truth for all social logins.
-   * Optimized for Chef Cary Neff's mobile-first audience.
+   * 1. MASTER INITIALIZATION
+   * This runs once when the app opens.
+   * It handles the logic for users returning from a mobile redirect.
+   */
+  useEffect(() => {
+    const initAuth = async () => {
+      try {
+        // Force LOCAL persistence so mobile browsers don't "forget" the session
+        await setPersistence(auth, browserLocalPersistence);
+        
+        // This is the critical fix for mobile: catch the redirect result
+        const result = await getRedirectResult(auth);
+        if (result?.user) {
+          console.log("Mobile redirect login successful:", result.user.email);
+        }
+      } catch (error: any) {
+        if (error.code !== "auth/redirect-cancelled-by-user") {
+          console.error("Auth Initialization Error:", error);
+        }
+      }
+    };
+
+    initAuth();
+  }, []);
+
+  /**
+   * 2. SYNC AUTH WITH FIRESTORE
+   * Listens for login/logout and fetches the "Conscious Profile".
+   */
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+      setUser(currentUser);
+      
+      if (currentUser) {
+        const docRef = doc(db, "users", currentUser.uid);
+        try {
+          const docSnap = await getDoc(docRef);
+          
+          if (docSnap.exists()) {
+            setProfile(docSnap.data());
+          } else {
+            // Setup default profile for first-time login
+            const newProfile = { 
+              name: currentUser.displayName || "New User", 
+              email: currentUser.email,
+              medicalHistory: [], 
+              role: 'user',
+              createdAt: serverTimestamp() 
+            };
+            await setDoc(docRef, newProfile);
+            setProfile(newProfile);
+          }
+        } catch (err) {
+          console.error("Profile Fetch Error:", err);
+        }
+      } else {
+        setProfile(null);
+      }
+      
+      // Crucial: only stop loading once we've checked the profile
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  /**
+   * 3. UNIVERSAL SOCIAL LOGIN HANDLER
+   * Optimized for Mobile Redirects vs. Desktop Popups
    */
   const executeSocialLogin = async (provider: FirebaseAuthProvider): Promise<void> => {
-    const isMobile = 
-      typeof window !== "undefined" && 
-      (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || window.innerWidth < 768);
+    if (typeof window === "undefined") return;
+
+    // Detect mobile by userAgent or screen size
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || window.innerWidth < 768;
 
     try {
-      // Ensure session persistence before the jump
-      await setPersistence(auth, browserLocalPersistence);
-
       if (isMobile) {
-        // Redirect mode for messy hands in the kitchen (Mobile Safari/Chrome)
+        // Triggers a page reload - handled by initAuth above
         await signInWithRedirect(auth, provider);
       } else {
-        // Popup mode for desktop convenience
+        // Desktop standard
         await signInWithPopup(auth, provider);
       }
     } catch (error: any) {
-      // Gracefully catch cancellation so the app doesn't crash during the demo
       if (
-        error?.code === "auth/redirect-cancelled-by-user" || 
-        error?.code === "auth/popup-closed-by-user" ||
-        error?.code === "auth/cancelled-popup-request"
+        error.code === "auth/redirect-cancelled-by-user" || 
+        error.code === "auth/popup-closed-by-user"
       ) {
-        console.log("Chef, user cancelled login - returning to state.");
-        return;
+        return; // Gracefully handle user closing the window
       }
       throw error;
     }
   };
 
-  /**
-   * 2. INITIALIZATION & REDIRECT HANDLING
-   * Catches the user when they return from the Google/Apple redirect.
-   */
-  useEffect(() => {
-    const initAuth = async () => {
-      try {
-        await setPersistence(auth, browserLocalPersistence);
-        const result = await getRedirectResult(auth);
-        if (result?.user) {
-          console.log("Redirect login successful for:", result.user.email);
-        }
-      } catch (error: any) {
-        if (error.code !== "auth/redirect-cancelled-by-user") {
-          console.error("Auth Init Error:", error);
-        }
-      }
-    };
-    initAuth();
-  }, []);
-
-  /**
-   * 3. AUTH STATE LISTENER
-   * Syncs the Firebase User with the Firestore "Conscious Profile".
-   */
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-      setUser(currentUser);
-      if (currentUser) {
-        const docRef = doc(db, "users", currentUser.uid);
-        const docSnap = await getDoc(docRef);
-        
-        if (docSnap.exists()) {
-          setProfile(docSnap.data());
-        } else {
-          // New Profile Creation Logic
-          const newProfile = { 
-            name: currentUser.displayName || "User", 
-            medicalHistory: [], 
-            role: 'user',
-            createdAt: serverTimestamp() 
-          };
-          await setDoc(docRef, newProfile);
-          setProfile(newProfile);
-        }
-      } else {
-        setProfile(null);
-      }
-      setLoading(false);
-    });
-    return () => unsubscribe();
-  }, []);
-
-  // --- EXPORTED AUTH METHODS ---
+  // --- EXPORTED METHODS ---
 
   const loginWithGoogle = async (): Promise<void> => {
     const provider = new GoogleAuthProvider();
@@ -143,7 +151,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await executeSocialLogin(provider);
     } catch (error: any) {
       if (error.code === 'auth/operation-not-allowed') {
-        alert("Apple Sign-In is pending final developer certificate approval.");
+        alert("Apple Sign-In is currently being verified. Please use Google or Email for the demo.");
       } else {
         throw error;
       }
@@ -151,17 +159,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const loginWithEmail = async (email: string, pass: string): Promise<void> => {
-    await signInWithEmailAndPassword(auth, email, pass);
+    setLoading(true);
+    try {
+      await signInWithEmailAndPassword(auth, email, pass);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const signUpWithEmail = async (email: string, pass: string, name: string): Promise<void> => {
-    const res = await createUserWithEmailAndPassword(auth, email, pass);
-    await setDoc(doc(db, "users", res.user.uid), {
-      name,
-      medicalHistory: [],
-      role: 'user',
-      createdAt: serverTimestamp()
-    });
+    setLoading(true);
+    try {
+      const res = await createUserWithEmailAndPassword(auth, email, pass);
+      await setDoc(doc(db, "users", res.user.uid), {
+        name,
+        email,
+        medicalHistory: [],
+        role: 'user',
+        createdAt: serverTimestamp()
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   const resetPassword = async (email: string): Promise<void> => {
@@ -169,18 +188,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const logout = async (): Promise<void> => {
-    await signOut(auth);
+    setLoading(true);
+    try {
+      await signOut(auth);
+      setUser(null);
+      setProfile(null);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  // Performance Optimization: Only re-render when auth state actually changes
-  const authValue = useMemo(() => ({
+  // Memoize value to prevent unnecessary re-renders of your entire app
+  const contextValue = useMemo(() => ({
     user, profile, loading, 
     loginWithGoogle, loginWithApple, loginWithEmail, 
     signUpWithEmail, resetPassword, logout 
   }), [user, profile, loading]);
 
   return (
-    <AuthContext.Provider value={authValue}>
+    <AuthContext.Provider value={contextValue}>
       {children}
     </AuthContext.Provider>
   );
