@@ -1,33 +1,39 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
+import { useEffect, useState, useMemo } from "react";
+import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import { db } from "@/lib/firebase/config";
 import { doc, getDoc } from "firebase/firestore";
-import { useAuth } from "@/hooks/useAuth"; // Important: Added this
-import { useConsciousAI } from "@/hooks/useConsciousAI"; // Important: Added this
+import { useAuth } from "@/hooks/useAuth";
+import { useConsciousAI } from "@/hooks/useConsciousAI";
+
+// Components & UI
+import MolecularMap from "@/components/recipes/MolecularMap";
+import ScientistAudit from "@/components/recipes/ScientistAudit";
 import { 
-  Loader2, 
-  Beaker, 
-  ChefHat, 
-  Activity, 
-  AlertCircle, 
-  Play 
+  Loader2, Beaker, ChefHat, Activity, 
+  AlertCircle, Play, ChevronLeft, 
+  Users, Scale, Zap, ShieldCheck, 
+  Heart, Flame, Star, Sparkles
 } from "lucide-react";
 
 export default function RecipeDetailPage() {
   const { id } = useParams();
+  const router = useRouter();
   
-  // 1. Initialize Hooks
-  const { profile: userData } = useAuth(); // We map 'profile' to 'userData' for your UI
+  // Hooks
+  const { profile: userData } = useAuth();
   const { getAnalysis, analysis, loading: aiLoading } = useConsciousAI();
   
-  // 2. Local State
+  // State
   const [recipe, setRecipe] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [servings, setServings] = useState(4); // Default to 4
+  const [imageError, setImageError] = useState(false);
 
-  // 3. Fetch Recipe Data
+  // 1. Fetch Data
   useEffect(() => {
     async function fetchRecipe() {
       if (!id) return;
@@ -38,7 +44,7 @@ export default function RecipeDetailPage() {
           setRecipe(docSnap.data());
         }
       } catch (err) {
-        console.error("Error fetching recipe:", err);
+        console.error("Error:", err);
       } finally {
         setLoading(false);
       }
@@ -46,113 +52,180 @@ export default function RecipeDetailPage() {
     fetchRecipe();
   }, [id]);
 
-  // 4. Define the missing AI handler function
+  // 2. Ingredient Scaling Logic
+  // This finds numbers in strings and scales them based on serving ratio
+  const scaleIngredient = (ing: string) => {
+    const ratio = servings / 4; // Base recipe is calculated for 4
+    return ing.replace(/(\d+(\.\d+)?)/g, (match) => {
+      const val = parseFloat(match) * ratio;
+      return val % 1 === 0 ? val.toString() : val.toFixed(1);
+    });
+  };
+
+  // 3. AI Safety Request
   const handleAIRequest = () => {
     if (!recipe) return;
-    getAnalysis(
-      recipe, 
-      userData?.medicalHistory || [], 
-      userData?.name || "Guest"
-    );
+    getAnalysis(recipe, userData?.medicalHistory || [], userData?.name || "Guest");
   };
 
   if (loading) return (
-    <div className="flex h-screen items-center justify-center">
+    <div className="flex h-screen items-center justify-center bg-white">
       <Loader2 className="animate-spin text-emerald-600" size={48} />
     </div>
   );
 
-  if (!recipe) return <div className="p-20 text-center">Recipe not found.</div>;
+  if (!recipe) return <div className="p-20 text-center font-serif text-2xl">Recipe not found.</div>;
 
   return (
-    <main className="max-w-4xl mx-auto p-6 space-y-8">
-      {/* Header Section */}
-      <section className="space-y-4">
-        <h1 className="text-4xl font-serif font-bold text-slate-900">{recipe.title}</h1>
-        <div className="flex gap-4 text-sm text-slate-600">
-          <span className="flex items-center gap-1"><ChefHat size={16}/> {recipe.chefName || "Chef Cary Neff"}</span>
-          <span className="flex items-center gap-1"><Activity size={16}/> {recipe.difficulty || "Medium"}</span>
+    <main className="min-h-screen bg-white pb-32">
+      {/* --- TOP NAVIGATION BAR --- */}
+      <nav className="sticky top-0 z-50 bg-white/80 backdrop-blur-md px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+        <button onClick={() => router.back()} className="flex items-center gap-2 text-slate-500 hover:text-slate-900 transition-all font-bold text-sm uppercase tracking-widest">
+          <ChevronLeft size={18} /> Back to Library
+        </button>
+        <div className="flex items-center gap-4">
+           <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Clinical ID: {id?.toString().slice(0,8)}</span>
         </div>
-      </section>
+      </nav>
 
-      {/* AI ANALYSIS & COOK MODE SECTION */}
-      <section className="bg-emerald-50 border border-emerald-200 rounded-xl p-6 shadow-sm">
-        <div className="flex flex-col md:flex-row items-center justify-between gap-6 mb-4">
-          <div>
-            <h3 className="font-bold text-emerald-900 flex items-center gap-2">
-              <AlertCircle size={20} /> Conscious Cuisine Insight
-            </h3>
-            <p className="text-sm text-emerald-700">
-              {userData?.medicalHistory?.length > 0 
-                ? `Analyzing for: ${userData.medicalHistory.join(", ")}`
-                : "No medical conditions set. Analyzing for general wellness."}
-            </p>
+      {/* --- HERO SECTION --- */}
+      <section className="max-w-7xl mx-auto px-6 pt-8 grid lg:grid-cols-2 gap-12 items-center">
+        <div className="relative h-[500px] w-full rounded-[3rem] overflow-hidden shadow-2xl group">
+          <Image 
+            src={imageError ? "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?q=80&w=1000" : recipe.imageUrl} 
+            alt={recipe.title} 
+            fill 
+            priority
+            className="object-cover transition-transform duration-1000 group-hover:scale-105"
+            onError={() => setImageError(true)}
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-slate-900/60 via-transparent to-transparent"></div>
+          <div className="absolute bottom-10 left-10">
+            <span className="bg-emerald-500 text-white px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest mb-4 inline-block shadow-lg">
+              {recipe.category}
+            </span>
+            <h1 className="text-5xl md:text-6xl font-serif font-bold text-white leading-tight">
+              {recipe.title}
+            </h1>
           </div>
-          
-          <div className="flex flex-wrap gap-3">
-            <button 
-              onClick={handleAIRequest}
-              disabled={aiLoading} 
-              className="bg-emerald-100 text-emerald-700 px-6 py-2.5 rounded-full font-bold hover:bg-emerald-200 transition-all disabled:opacity-50"
-            >
-              {aiLoading ? "Consulting Groq..." : "Check Safety"}
-            </button>
+        </div>
 
+        <div className="space-y-8">
+          <div className="flex items-center gap-8">
+             <div className="flex flex-col">
+                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Cook Time</span>
+                <span className="text-xl font-serif font-bold text-slate-900">25 Mins</span>
+             </div>
+             <div className="h-8 w-px bg-slate-100"></div>
+             <div className="flex flex-col">
+                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Difficulty</span>
+                <span className="text-xl font-serif font-bold text-slate-900 capitalize">{recipe.difficulty}</span>
+             </div>
+             <div className="h-8 w-px bg-slate-100"></div>
+             <div className="flex flex-col">
+                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Audited By</span>
+                <span className="text-xl font-serif font-bold text-emerald-600 italic">B. Neff, CFS</span>
+             </div>
+          </div>
+
+          <p className="text-xl text-slate-500 leading-relaxed font-light">
+            {recipe.description}
+          </p>
+
+          <div className="flex flex-wrap gap-4 pt-4">
             <Link 
               href={`/recipes/${id}/cook`}
-              className="bg-emerald-600 text-white px-8 py-2.5 rounded-full font-bold flex items-center gap-2 hover:bg-emerald-700 shadow-lg shadow-emerald-200 transition-all active:scale-95"
+              className="bg-emerald-600 text-white px-10 py-4 rounded-full font-bold flex items-center gap-3 hover:bg-emerald-700 transition-all shadow-xl shadow-emerald-100 active:scale-95"
             >
-              <Play size={18} fill="currentColor" /> Start Guided Cooking
+              <Play size={20} fill="currentColor" /> Start Guided Cooking
             </Link>
+            <button 
+              onClick={handleAIRequest}
+              disabled={aiLoading}
+              className="border-2 border-slate-900 text-slate-900 px-10 py-4 rounded-full font-bold flex items-center gap-3 hover:bg-slate-900 hover:text-white transition-all disabled:opacity-50"
+            >
+              {aiLoading ? <Loader2 className="animate-spin" /> : <ShieldCheck size={20} />}
+              Clinical Safety Check
+            </button>
           </div>
         </div>
-
-        {analysis && (
-          <div className="prose prose-emerald max-w-none mt-4 p-6 bg-white rounded-lg shadow-sm border border-emerald-100 animate-in fade-in slide-in-from-top-2">
-            <div className="whitespace-pre-wrap text-slate-700 leading-relaxed">
-              {analysis}
-            </div>
-          </div>
-        )}
       </section>
 
-      {/* Recipe Body */}
-      <div className="grid md:grid-cols-3 gap-8">
-        <div className="md:col-span-1 space-y-6">
-          <div>
-            <h3 className="text-xl font-bold mb-4 text-slate-900 border-b pb-2">Ingredients</h3>
-            <ul className="space-y-3">
-              {recipe.ingredients?.map((ing: string, i: number) => (
-                <li key={i} className="text-slate-700 flex items-start gap-2">
-                  <span className="text-emerald-500 mt-1.5 w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0"></span>
-                  {ing}
-                </li>
-              ))}
-            </ul>
+      {/* --- PERSONALIZED AI INSIGHT --- */}
+      {analysis && (
+        <section className="max-w-4xl mx-auto px-6 mt-16">
+          <div className="bg-emerald-50 border border-emerald-100 rounded-[2.5rem] p-10 relative overflow-hidden">
+            <div className="absolute top-0 right-0 p-8 opacity-5">
+              <Zap size={120} className="text-emerald-900" />
+            </div>
+            <div className="relative z-10">
+              <h3 className="text-emerald-900 font-bold flex items-center gap-2 mb-6 uppercase tracking-widest text-xs">
+                <Sparkles size={16} /> Personal Intervention for {userData?.name || 'Guest'}
+              </h3>
+              <div className="whitespace-pre-wrap text-slate-700 leading-relaxed font-serif text-lg">
+                {analysis}
+              </div>
+            </div>
           </div>
+        </section>
+      )}
 
-          <div className="bg-blue-50 p-5 rounded-xl border border-blue-100">
-            <h4 className="font-bold text-blue-900 flex items-center gap-2 mb-2">
-              <Beaker size={18} /> Nutrition Science
-            </h4>
-            <p className="text-sm text-blue-800 leading-relaxed italic">
-              {recipe.nutritionScienceSnippet}
-            </p>
+      {/* --- MOLECULAR MAP & AUDIT (Breanna's Logic) --- */}
+      <section className="max-w-7xl mx-auto px-6 mt-20 grid md:grid-cols-2 gap-8">
+        <MolecularMap category={recipe.category} />
+        <ScientistAudit snippet={recipe.nutritionScienceSnippet} />
+      </section>
+
+      {/* --- THE KITCHEN GRID --- */}
+      <section className="max-w-7xl mx-auto px-6 mt-24 grid lg:grid-cols-3 gap-16">
+        
+        {/* Ingredients Column */}
+        <div className="lg:col-span-1">
+          <div className="flex items-center justify-between border-b border-slate-200 pb-6 mb-8">
+            <h3 className="text-3xl font-serif font-bold text-slate-900">Ingredients</h3>
+            {/* Dynamic Scaling Control */}
+            <div className="flex items-center gap-3 bg-slate-100 p-1 rounded-full">
+              <button onClick={() => setServings(Math.max(1, servings - 1))} className="w-8 h-8 rounded-full bg-white shadow-sm flex items-center justify-center font-bold text-slate-600">-</button>
+              <span className="text-[10px] font-black uppercase w-14 text-center">{servings} Serves</span>
+              <button onClick={() => setServings(servings + 1)} className="w-8 h-8 rounded-full bg-white shadow-sm flex items-center justify-center font-bold text-slate-600">+</button>
+            </div>
           </div>
-        </div>
-
-        <div className="md:col-span-2">
-          <h3 className="text-xl font-bold mb-4 text-slate-900 border-b pb-2">Preparation</h3>
-          <ol className="space-y-6">
-            {recipe.steps?.map((step: string, i: number) => (
-              <li key={i} className="flex gap-4">
-                <span className="font-serif font-bold text-emerald-600 text-2xl leading-none">{i + 1}</span>
-                <p className="text-slate-800 leading-relaxed text-lg">{step}</p>
+          <ul className="space-y-4">
+            {recipe.ingredients?.map((ing: string, i: number) => (
+              <li key={i} className="flex items-start gap-4 text-slate-700 group">
+                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 mt-2 shrink-0 group-hover:scale-150 transition-transform"></div>
+                <span className="text-lg leading-snug">{scaleIngredient(ing)}</span>
               </li>
             ))}
-          </ol>
+          </ul>
+
+          {/* Chef's Tip Box */}
+          <div className="mt-12 bg-amber-50 rounded-[2rem] p-8 border border-amber-100">
+             <h4 className="text-amber-900 font-bold flex items-center gap-2 mb-4 uppercase tracking-widest text-xs">
+                <ChefHat size={16} /> Cary's Conscious Tip
+             </h4>
+             <p className="text-amber-800 italic leading-relaxed">
+                "{recipe.chefTips || "Remember: Season with intention. The goal is to maximize flavor while respecting the clinical profile of the ingredients."}"
+             </p>
+          </div>
         </div>
-      </div>
+
+        {/* Preparation Column */}
+        <div className="lg:col-span-2">
+          <h3 className="text-3xl font-serif font-bold text-slate-900 border-b border-slate-200 pb-6 mb-8">Preparation</h3>
+          <div className="space-y-12">
+            {recipe.steps?.map((step: string, i: number) => (
+              <div key={i} className="flex gap-8 group">
+                <span className="text-6xl font-serif font-black text-slate-100 group-hover:text-emerald-50 transition-colors duration-500">{i + 1}</span>
+                <div className="pt-2">
+                  <p className="text-xl text-slate-800 leading-relaxed font-light">{step}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+      </section>
     </main>
   );
 }

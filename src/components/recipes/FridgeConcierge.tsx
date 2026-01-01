@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Refrigerator, Sparkles, ArrowRight, Loader2 } from "lucide-react";
+import { Refrigerator, Sparkles, ArrowRight, Loader2, Mic } from "lucide-react";
 
 export default function FridgeConcierge({ recipes }: { recipes: any[] }) {
   const [ingredients, setIngredients] = useState("");
@@ -29,6 +29,18 @@ export default function FridgeConcierge({ recipes }: { recipes: any[] }) {
       setLoading(false);
     }
   };
+
+  const startListening = () => {
+  const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+  if (SpeechRecognition) {
+    const recognition = new SpeechRecognition();
+    recognition.onresult = (event: any) => {
+      const transcript = event.results[0][0].transcript;
+      setIngredients(transcript);
+    };
+    recognition.start();
+  }
+};
 
   return (
     <section className="bg-emerald-900 rounded-[3rem] p-8 md:p-12 text-white overflow-hidden relative mb-12">
@@ -57,6 +69,9 @@ export default function FridgeConcierge({ recipes }: { recipes: any[] }) {
               className="absolute right-2 top-2 bottom-2 bg-emerald-500 hover:bg-emerald-400 text-emerald-950 px-6 rounded-xl font-bold transition-all disabled:opacity-30"
             >
               {loading ? <Loader2 className="animate-spin" /> : "Match"}
+            </button>
+            <button onClick={startListening} className="p-3 bg-emerald-800 rounded-xl hover:bg-emerald-700">
+            <Mic size={20} />
             </button>
           </div>
         </div>
