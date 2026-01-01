@@ -39,13 +39,14 @@ export default function RecipeCard({ recipe }: { recipe: Recipe }) {
   return (
     <div className="group bg-white border border-slate-200 rounded-[2.5rem] overflow-hidden hover:shadow-2xl transition-all duration-500 flex flex-col h-full">
       <div className="relative h-64 w-full overflow-hidden bg-slate-100">
-        <Image 
+        <img 
           src={imageSrc} 
           alt={recipe.title} 
-          fill 
-          sizes="(max-width: 768px) 100vw, 33vw"
-          className="object-cover group-hover:scale-110 transition-transform duration-1000"
-          onError={() => setImageSrc("https://images.unsplash.com/photo-1504674900247-0877df9cc836?q=80&w=1000&auto=format&fit=crop")}
+          className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-1000"
+          onError={(e) => {
+            // Ultimate fallback if the image fails
+            (e.target as HTMLImageElement).src = "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?q=80&w=1000";
+          }}
         />
 
         <div className="absolute top-5 left-5 z-10">
